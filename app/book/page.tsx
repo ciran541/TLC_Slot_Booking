@@ -37,7 +37,7 @@ interface IdentifyForm {
 
 export default function BookingPage() {
   const searchParams = useSearchParams();
-  const phone = searchParams.get("phone") ?? "";
+  const urlName = searchParams.get("name") ?? "";
 
   const [state, setState] = useState<BookingState>({
     lead: null,
@@ -58,12 +58,12 @@ export default function BookingPage() {
   });
 
   // ─── Fetch data ────────────────────────────────────────────────────────────
-  const loadData = useCallback((phoneNumber: string) => {
+  const loadData = useCallback((searchName: string) => {
     setState((s) => ({ ...s, stage: "loading" }));
 
-    if (phoneNumber) {
+    if (searchName) {
       Promise.all([
-        fetch(`/api/lead?phone=${encodeURIComponent(phoneNumber)}`)
+        fetch(`/api/lead?name=${encodeURIComponent(searchName)}`)
           .then((r) => r.json())
           .catch(() => ({ error: "Network error" })),
         fetch("/api/slots").then((r) => r.json()),
@@ -72,8 +72,8 @@ export default function BookingPage() {
           const dates = Object.keys(slotsRes.slots ?? {});
 
           if (leadRes.error || !leadRes.lead) {
-            // Gracefully fallback to walk-in flow but pre-fill phone
-            setForm((f) => ({ ...f, phone: phoneNumber }));
+            // Gracefully fallback to walk-in flow but pre-fill name
+            setForm((f) => ({ ...f, name: searchName }));
             setState((s) => ({
               ...s,
               lead: null,
@@ -87,9 +87,9 @@ export default function BookingPage() {
           // Valid lead found, pre-fill form
           setForm((f) => ({
             ...f,
-            name: leadRes.lead.name ?? "",
+            name: leadRes.lead.name ?? searchName,
             email: leadRes.lead.email ?? "",
-            phone: leadRes.lead.phone ?? phoneNumber,
+            phone: leadRes.lead.phone ?? "",
           }));
 
           setState((s) => ({
@@ -132,7 +132,7 @@ export default function BookingPage() {
 
   // ─── Auto-load ───────────────────────────────────────────────────────────
   useEffect(() => {
-    loadData(phone);
+    loadData(urlName);
     
     // Auto-update slots every 10 seconds (Real-time slots)
     const interval = setInterval(() => {
@@ -162,7 +162,7 @@ export default function BookingPage() {
     }, 10000);
 
     return () => clearInterval(interval);
-  }, [phone, loadData]);
+  }, [urlName, loadData]);
 
   // ─── Walk-in form submit ───────────────────────────────────────────────────
   const handleWalkInSubmit = useCallback(async () => {
@@ -303,7 +303,7 @@ export default function BookingPage() {
             <p className="text-[15px] text-[#39353d] leading-relaxed">{errorMessage}</p>
           </div>
           <button
-            onClick={() => setState((s) => ({ ...s, stage: phone ? "loading" : "identify", errorMessage: "" }))}
+            onClick={() => setState((s) => ({ ...s, stage: urlName ? "loading" : "identify", errorMessage: "" }))}
             className="text-sm text-[#052d4a] underline underline-offset-2 cursor-pointer"
           >
             Try again

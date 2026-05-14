@@ -1,29 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
-// GET /api/lead?phone=6591234567
+// GET /api/lead?name=John
 export async function GET(request: NextRequest) {
-  const phone = request.nextUrl.searchParams.get("phone");
+  const name = request.nextUrl.searchParams.get("name");
 
-  if (!phone) {
-    return NextResponse.json({ error: "Phone number is required" }, { status: 400 });
+  if (!name) {
+    return NextResponse.json({ error: "Name parameter is required" }, { status: 400 });
   }
 
-  // Normalize: strip spaces, dashes, and ensure it starts with a +
-  let normalized = phone.replace(/[\s\-\(\)]/g, "");
-  if (!normalized.startsWith("+")) {
-    normalized = "+" + normalized;
-  }
-
-  const { data: lead, error } = await supabaseAdmin
+  const { data: leads, error } = await supabaseAdmin
     .from("leads")
     .select("id, name, email, phone")
-    .eq("phone", normalized)
-    .single();
+    .ilike("name", `%${name}%`)
+    .order("created_at", { ascending: false })
+    .limit(1);
 
-  if (error || !lead) {
+  if (error || !leads || leads.length === 0) {
     return NextResponse.json({ error: "Lead not found" }, { status: 404 });
   }
 
-  return NextResponse.json({ lead });
+  return NextResponse.json({ lead: leads[0] });
 }
