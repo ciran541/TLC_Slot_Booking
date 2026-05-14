@@ -163,8 +163,8 @@ export async function getAvailableSlots(): Promise<
 
     const candidates = generateDaySlots(dateStr);
     const available = candidates.filter(({ start, end }) => {
-      // Skip past slots (with 15 min buffer)
-      if (!isAfter(start, addMinutes(nowUtc, 15))) return false;
+      // Require at least 60 minutes notice for the next available slot
+      if (!isAfter(start, addMinutes(nowUtc, 60))) return false;
       return !overlaps(start, end, busySlots);
     });
 

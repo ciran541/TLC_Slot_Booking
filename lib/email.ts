@@ -105,6 +105,7 @@ export async function sendBookingConfirmation(params: {
   await resend.emails.send({
     from: FROM,
     to,
+    bcc: "dexter@theloanconnection.com.sg",
     subject: `Confirmed: Mortgage Consultation on ${slotDate}`,
     html,
   });

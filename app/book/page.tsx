@@ -133,7 +133,7 @@ export default function BookingPage() {
   // ─── Auto-load ───────────────────────────────────────────────────────────
   useEffect(() => {
     loadData(urlName);
-    
+
     // Auto-update slots every 10 seconds (Real-time slots)
     const interval = setInterval(() => {
       fetch("/api/slots")
@@ -158,7 +158,7 @@ export default function BookingPage() {
             });
           }
         })
-        .catch(() => {});
+        .catch(() => { });
     }, 10000);
 
     return () => clearInterval(interval);
@@ -444,10 +444,6 @@ export default function BookingPage() {
               )}
             </button>
           </div>
-
-          <p className="text-xs text-[#a8a8a0] leading-relaxed">
-            Your details are used solely to personalise your booking. We do not share them.
-          </p>
         </div>
       </Shell>
     );
@@ -557,7 +553,7 @@ export default function BookingPage() {
         </div>
 
         <p className="text-xs text-[#a8a8a0] leading-relaxed">
-          A Google Meet link and email confirmation will be sent immediately after booking.
+          An email confirmation will be sent to you after booking.
         </p>
       </div>
     </Shell>
