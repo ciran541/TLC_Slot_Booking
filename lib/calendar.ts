@@ -1,4 +1,4 @@
-import { google } from "googleapis";
+import crypto from "crypto";
 import {
   addMinutes,
   isAfter,
@@ -20,18 +20,57 @@ const DAYS_AHEAD = 14; // show 2 weeks of availability
 const TIME_ZONE = "Asia/Singapore";
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
-function getCalendarAuth() {
-  const auth = new google.auth.GoogleAuth({
-    credentials: {
-      client_email: process.env.GOOGLE_CLIENT_EMAIL,
-      private_key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
-    },
-    scopes: [
-      "https://www.googleapis.com/auth/calendar",
-      "https://www.googleapis.com/auth/calendar.events",
-    ],
+async function getAccessToken(): Promise<string> {
+  const privateKey = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, "\n");
+  const clientEmail = process.env.GOOGLE_CLIENT_EMAIL;
+
+  if (!privateKey || !clientEmail) {
+    throw new Error("Missing Google Calendar credentials");
+  }
+
+  const header = { alg: "RS256", typ: "JWT" };
+  const now = Math.floor(Date.now() / 1000);
+  const claim = {
+    iss: clientEmail,
+    scope: "https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/calendar.events",
+    aud: "https://oauth2.googleapis.com/token",
+    exp: now + 3600,
+    iat: now,
+  };
+
+  const toBase64Url = (obj: any) =>
+    Buffer.from(JSON.stringify(obj))
+      .toString("base64")
+      .replace(/=/g, "")
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_");
+
+  const signatureInput = `${toBase64Url(header)}.${toBase64Url(claim)}`;
+
+  const sign = crypto.createSign("RSA-SHA256");
+  sign.update(signatureInput);
+  const signature = sign
+    .sign(privateKey, "base64")
+    .replace(/=/g, "")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_");
+
+  const jwt = `${signatureInput}.${signature}`;
+
+  const res = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${jwt}`,
+    cache: "no-store", // Force realtime!
   });
-  return auth;
+
+  const data = await res.json();
+  if (!data.access_token) {
+    console.error("Google Auth Error:", data);
+    throw new Error("Failed to authenticate with Google");
+  }
+
+  return data.access_token;
 }
 
 // ─── Get busy intervals from Google Calendar ──────────────────────────────────
@@ -39,21 +78,27 @@ export async function getBusySlots(
   timeMin: string,
   timeMax: string
 ): Promise<Array<{ start: string; end: string }>> {
-  const auth = getCalendarAuth();
-  const calendar = google.calendar({ version: "v3", auth });
+  const token = await getAccessToken();
+  const calendarId = process.env.GOOGLE_CALENDAR_ID!;
 
-  const response = await calendar.freebusy.query({
-    requestBody: {
+  const response = await fetch("https://www.googleapis.com/calendar/v3/freeBusy", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
       timeMin,
       timeMax,
-      items: [{ id: process.env.GOOGLE_CALENDAR_ID! }],
-    },
+      items: [{ id: calendarId }],
+    }),
+    cache: "no-store", // Force realtime!
   });
 
-  const busySlots =
-    response.data.calendars?.[process.env.GOOGLE_CALENDAR_ID!]?.busy ?? [];
+  const data = await response.json();
+  const busySlots = data.calendars?.[calendarId]?.busy ?? [];
 
-  return busySlots.map((s) => ({
+  return busySlots.map((s: any) => ({
     start: s.start ?? "",
     end: s.end ?? "",
   }));
@@ -144,12 +189,16 @@ export async function createCalendarEvent(params: {
   startTime: string;
   endTime: string;
 }): Promise<{ eventId: string }> {
-  const auth = getCalendarAuth();
-  const calendar = google.calendar({ version: "v3", auth });
+  const token = await getAccessToken();
+  const calendarId = encodeURIComponent(process.env.GOOGLE_CALENDAR_ID!);
 
-  const event = await calendar.events.insert({
-    calendarId: process.env.GOOGLE_CALENDAR_ID!,
-    requestBody: {
+  const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events`, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
       summary: params.summary,
       description: params.description,
       start: { dateTime: params.startTime, timeZone: "Asia/Singapore" },
@@ -161,10 +210,15 @@ export async function createCalendarEvent(params: {
           { method: "popup", minutes: 15 },
         ],
       },
-    },
+    }),
+    cache: "no-store",
   });
 
-  const eventId = event.data.id!;
-  
-  return { eventId };
+  const event = await response.json();
+  if (event.error) {
+    console.error("Event creation error:", event.error);
+    throw new Error("Failed to create Google Calendar event");
+  }
+
+  return { eventId: event.id! };
 }

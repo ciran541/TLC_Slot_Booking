@@ -133,6 +133,35 @@ export default function BookingPage() {
   // ─── Auto-load ───────────────────────────────────────────────────────────
   useEffect(() => {
     loadData(phone);
+    
+    // Auto-update slots every 10 seconds (Real-time slots)
+    const interval = setInterval(() => {
+      fetch("/api/slots")
+        .then((r) => r.json())
+        .then((slotsRes) => {
+          if (slotsRes.slots) {
+            setState((s) => {
+              // Check if selected slot is still available
+              let isSelectedSlotStillAvailable = true;
+              if (s.selectedDate && s.selectedSlot) {
+                const availableForDate = slotsRes.slots[s.selectedDate] || [];
+                isSelectedSlotStillAvailable = availableForDate.some((slot: TimeSlot) => slot.start === s.selectedSlot!.start);
+              }
+
+              return {
+                ...s,
+                slotsByDate: slotsRes.slots,
+                selectedSlot: isSelectedSlotStillAvailable ? s.selectedSlot : null,
+                stage: !isSelectedSlotStillAvailable && s.stage === "identify" ? "ready" : s.stage,
+                errorMessage: !isSelectedSlotStillAvailable && s.stage === "identify" ? "The slot you selected was just booked by someone else." : s.errorMessage
+              };
+            });
+          }
+        })
+        .catch(() => {});
+    }, 10000);
+
+    return () => clearInterval(interval);
   }, [phone, loadData]);
 
   // ─── Walk-in form submit ───────────────────────────────────────────────────
