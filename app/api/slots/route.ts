@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { getAvailableSlots } from "@/lib/calendar";
 
+export const revalidate = 60;
+
 // GET /api/slots
 // Returns available booking slots grouped by date for the next 14 weekdays
 export async function GET() {
