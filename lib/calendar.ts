@@ -1,16 +1,13 @@
 import { google } from "googleapis";
 import {
   addMinutes,
-  startOfDay,
-  setHours,
-  setMinutes,
   isAfter,
   isBefore,
   parseISO,
   format,
   addDays,
-  getDay,
 } from "date-fns";
+import { toZonedTime, formatInTimeZone } from "date-fns-tz";
 import { TimeSlot } from "@/lib/types";
 
 // ─── Config ───────────────────────────────────────────────────────────────────
@@ -20,6 +17,7 @@ const MEETING_DURATION = 45; // minutes
 const BUFFER = 15; // minutes between slots
 const SLOT_INTERVAL = MEETING_DURATION + BUFFER; // 60 minutes
 const DAYS_AHEAD = 14; // show 2 weeks of availability
+const TIME_ZONE = "Asia/Singapore";
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 function getCalendarAuth() {
@@ -62,13 +60,15 @@ export async function getBusySlots(
 }
 
 // ─── Generate all candidate slots for a given date ───────────────────────────
-function generateDaySlots(date: Date): Array<{ start: Date; end: Date }> {
+function generateDaySlots(dateStr: string): Array<{ start: Date; end: Date }> {
   const slots: Array<{ start: Date; end: Date }> = [];
-  const dayStart = setMinutes(
-    setHours(startOfDay(date), WORKING_HOURS_START),
-    0
-  );
-  const dayEnd = setMinutes(setHours(startOfDay(date), WORKING_HOURS_END), 0);
+  
+  // Construct ISO string with explicit +08:00 offset to bypass server timezone issues
+  const dayStartStr = `${dateStr}T${WORKING_HOURS_START.toString().padStart(2, "0")}:00:00+08:00`;
+  const dayEndStr = `${dateStr}T${WORKING_HOURS_END.toString().padStart(2, "0")}:00:00+08:00`;
+  
+  const dayStart = parseISO(dayStartStr);
+  const dayEnd = parseISO(dayEndStr);
 
   let cursor = dayStart;
   while (isBefore(addMinutes(cursor, MEETING_DURATION), dayEnd) || 
@@ -97,34 +97,37 @@ function overlaps(
 export async function getAvailableSlots(): Promise<
   Record<string, TimeSlot[]>
 > {
-  const now = new Date();
-  const timeMin = now.toISOString();
-  const timeMax = addDays(now, DAYS_AHEAD).toISOString();
+  const nowUtc = new Date();
+  const nowSgt = toZonedTime(nowUtc, TIME_ZONE);
+
+  const timeMin = nowUtc.toISOString();
+  const timeMax = addDays(nowUtc, DAYS_AHEAD + 2).toISOString(); // Add buffer to timeMax just in case
 
   const busySlots = await getBusySlots(timeMin, timeMax);
 
   const slotsByDate: Record<string, TimeSlot[]> = {};
 
   for (let i = 0; i < DAYS_AHEAD; i++) {
-    const day = addDays(now, i);
-    const dayOfWeek = getDay(day); // 0=Sun, 6=Sat
+    const daySgt = addDays(nowSgt, i);
+    const dayOfWeek = daySgt.getDay(); // 0=Sun, 6=Sat
 
     // Skip weekends
     if (dayOfWeek === 0 || dayOfWeek === 6) continue;
 
-    const candidates = generateDaySlots(day);
+    const dateStr = format(daySgt, "yyyy-MM-dd");
+
+    const candidates = generateDaySlots(dateStr);
     const available = candidates.filter(({ start, end }) => {
       // Skip past slots (with 15 min buffer)
-      if (!isAfter(start, addMinutes(now, 15))) return false;
+      if (!isAfter(start, addMinutes(nowUtc, 15))) return false;
       return !overlaps(start, end, busySlots);
     });
 
     if (available.length > 0) {
-      const dateKey = format(day, "yyyy-MM-dd");
-      slotsByDate[dateKey] = available.map(({ start, end }) => ({
+      slotsByDate[dateStr] = available.map(({ start, end }) => ({
         start: start.toISOString(),
         end: end.toISOString(),
-        label: format(start, "h:mm a"),
+        label: formatInTimeZone(start, TIME_ZONE, "h:mm a"),
       }));
     }
   }
