@@ -24,16 +24,15 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Normalize: strip spaces, dashes, and ensure it starts with a +
-  let normalized = phone.replace(/[\s\-\(\)]/g, "");
-  if (!normalized.startsWith("+")) {
-    normalized = "+" + normalized;
-  }
-  const phoneWithout = normalized.replace(/^\+65/, "");
+  // Normalize: strip spaces, dashes, etc.
+  const normalized = phone.replace(/[\s\-\(\)]/g, "");
+  const withPlus = normalized.startsWith("+") ? normalized : "+" + normalized;
+  const withoutPlus = normalized.startsWith("+") ? normalized.substring(1) : normalized;
+
   const { data: leads, error: leadError } = await supabaseAdmin
     .from("leads")
     .select("id, name, email, phone, source")
-    .or(`phone.eq.${normalized},phone.eq.${phoneWithout}`)
+    .in("phone", [withPlus, withoutPlus])
     .order("created_at", { ascending: false })
     .limit(1);
 

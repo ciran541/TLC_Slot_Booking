@@ -31,18 +31,15 @@ export async function POST(request: NextRequest) {
 
   // Normalise phone: strip spaces/dashes/parens
   let normalizedPhone = phone.trim().replace(/[\s\-\(\)]/g, "");
-  if (!normalizedPhone.startsWith("+")) {
-    normalizedPhone = "+" + normalizedPhone;
-  }
-
-  // Strip +65 version for fallback search
-  const phoneWithout = normalizedPhone.replace(/^\+65/, "");
+  // Search for both the version with + and without + to handle inconsistency
+  const withPlus = normalizedPhone.startsWith("+") ? normalizedPhone : "+" + normalizedPhone;
+  const withoutPlus = normalizedPhone.startsWith("+") ? normalizedPhone.substring(1) : normalizedPhone;
 
   // 1. Check if lead already exists (search both formats)
   const { data: existingLeads, error: searchError } = await supabaseAdmin
     .from("leads")
-    .select("id, name, email, phone")
-    .or(`phone.eq.${normalizedPhone},phone.eq.${phoneWithout}`)
+    .select("id, name, email, phone, source")
+    .in("phone", [withPlus, withoutPlus])
     .order("created_at", { ascending: false })
     .limit(1);
 
