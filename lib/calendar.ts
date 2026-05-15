@@ -12,7 +12,7 @@ import { TimeSlot } from "@/lib/types";
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 const WORKING_HOURS_START = 10; // 10:00 AM
-const WORKING_HOURS_END = 18; // 6:00 PM
+const WORKING_HOURS_END = 21; // 9:00 PM (to allow 8:00 PM slot)
 const MEETING_DURATION = 45; // minutes
 const BUFFER = 15; // minutes between slots
 const SLOT_INTERVAL = MEETING_DURATION + BUFFER; // 60 minutes
@@ -107,17 +107,17 @@ export async function getBusySlots(
 // ─── Generate all candidate slots for a given date ───────────────────────────
 function generateDaySlots(dateStr: string): Array<{ start: Date; end: Date }> {
   const slots: Array<{ start: Date; end: Date }> = [];
-  
+
   // Construct ISO string with explicit +08:00 offset to bypass server timezone issues
   const dayStartStr = `${dateStr}T${WORKING_HOURS_START.toString().padStart(2, "0")}:00:00+08:00`;
   const dayEndStr = `${dateStr}T${WORKING_HOURS_END.toString().padStart(2, "0")}:00:00+08:00`;
-  
+
   const dayStart = parseISO(dayStartStr);
   const dayEnd = parseISO(dayEndStr);
 
   let cursor = dayStart;
-  while (isBefore(addMinutes(cursor, MEETING_DURATION), dayEnd) || 
-         +addMinutes(cursor, MEETING_DURATION) === +dayEnd) {
+  while (isBefore(addMinutes(cursor, MEETING_DURATION), dayEnd) ||
+    +addMinutes(cursor, MEETING_DURATION) === +dayEnd) {
     slots.push({ start: cursor, end: addMinutes(cursor, MEETING_DURATION) });
     cursor = addMinutes(cursor, SLOT_INTERVAL);
   }
