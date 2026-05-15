@@ -35,11 +35,14 @@ export async function POST(request: NextRequest) {
     normalizedPhone = "+" + normalizedPhone;
   }
 
-  // 1. Check if lead already exists
+  // Strip +65 version for fallback search
+  const phoneWithout = normalizedPhone.replace(/^\+65/, "");
+
+  // 1. Check if lead already exists (search both formats)
   const { data: existingLeads, error: searchError } = await supabaseAdmin
     .from("leads")
     .select("id, name, email, phone")
-    .eq("phone", normalizedPhone)
+    .or(`phone.eq.${normalizedPhone},phone.eq.${phoneWithout}`)
     .order("created_at", { ascending: false })
     .limit(1);
 
@@ -57,9 +60,9 @@ export async function POST(request: NextRequest) {
     .from("leads")
     .insert(
       {
-        name:   name.trim(),
-        email:  email.trim().toLowerCase(),
-        phone:  normalizedPhone,
+        name: name.trim(),
+        email: email.trim().toLowerCase(),
+        phone: normalizedPhone,
         source: "direct_booking",
       }
     )

@@ -29,10 +29,11 @@ export async function POST(request: NextRequest) {
   if (!normalized.startsWith("+")) {
     normalized = "+" + normalized;
   }
+  const phoneWithout = normalized.replace(/^\+65/, "");
   const { data: leads, error: leadError } = await supabaseAdmin
     .from("leads")
-    .select("id, name, email")
-    .eq("phone", normalized)
+    .select("id, name, email, phone, source")
+    .or(`phone.eq.${normalized},phone.eq.${phoneWithout}`)
     .order("created_at", { ascending: false })
     .limit(1);
 
@@ -67,7 +68,7 @@ export async function POST(request: NextRequest) {
   // ─── 3. Create Google Calendar event ────────────────────────────────────────
   const { eventId } = await createCalendarEvent({
     summary: `Mortgage Consultation — ${lead.name}`,
-    description: `Complimentary mortgage consultation with ${lead.name}.\n\nContact: ${lead.email} | ${phone}`,
+    description: `Complimentary mortgage consultation with ${lead.name}.\n\nContact: ${lead.email} | ${lead.phone}\nSource: ${lead.source || "Unknown"}`,
     attendeeEmail: lead.email,
     attendeeName: lead.name,
     startTime: slot_start,
