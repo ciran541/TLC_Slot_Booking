@@ -35,16 +35,33 @@ export async function POST(request: NextRequest) {
     normalizedPhone = "+" + normalizedPhone;
   }
 
+  // 1. Check if lead already exists
+  const { data: existingLeads, error: searchError } = await supabaseAdmin
+    .from("leads")
+    .select("id, name, email, phone")
+    .eq("phone", normalizedPhone)
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  if (searchError) {
+    console.error("[identify] Supabase search error:", searchError);
+    return NextResponse.json({ error: "Failed to verify details. Please try again." }, { status: 500 });
+  }
+
+  if (existingLeads && existingLeads.length > 0) {
+    return NextResponse.json({ lead: existingLeads[0] });
+  }
+
+  // 2. If no lead exists, insert new lead
   const { data: lead, error } = await supabaseAdmin
     .from("leads")
-    .upsert(
+    .insert(
       {
         name:   name.trim(),
         email:  email.trim().toLowerCase(),
         phone:  normalizedPhone,
         source: "direct_booking",
-      },
-      { onConflict: "phone", ignoreDuplicates: false }
+      }
     )
     .select("id, name, email, phone")
     .single();

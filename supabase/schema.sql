@@ -9,7 +9,7 @@ create table if not exists public.leads (
   id          uuid primary key default gen_random_uuid(),
   name        text not null,
   email       text not null,
-  phone       text not null unique,          -- unique constraint for upsert
+  phone       text not null,
   source      text default 'google_sheets',
   created_at  timestamptz not null default now()
 );

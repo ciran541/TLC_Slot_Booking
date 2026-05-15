@@ -29,15 +29,18 @@ export async function POST(request: NextRequest) {
   if (!normalized.startsWith("+")) {
     normalized = "+" + normalized;
   }
-  const { data: lead, error: leadError } = await supabaseAdmin
+  const { data: leads, error: leadError } = await supabaseAdmin
     .from("leads")
     .select("id, name, email")
     .eq("phone", normalized)
-    .single();
+    .order("created_at", { ascending: false })
+    .limit(1);
 
-  if (leadError || !lead) {
+  if (leadError || !leads || leads.length === 0) {
     return NextResponse.json({ error: "Lead not found" }, { status: 404 });
   }
+
+  const lead = leads[0];
 
   // ─── 2. Revalidate slot availability (prevent double booking) ───────────────
   const slotStart = parseISO(slot_start);
