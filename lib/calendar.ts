@@ -165,6 +165,11 @@ export async function getAvailableSlots(): Promise<
     const available = candidates.filter(({ start, end }) => {
       // Skip past slots (must be at least 1 hour from now)
       if (!isAfter(start, addMinutes(nowUtc, 60))) return false;
+
+      // Block out 5pm and 6pm slots
+      const startHour = parseInt(formatInTimeZone(start, TIME_ZONE, "H"), 10);
+      if (startHour === 17 || startHour === 18) return false;
+
       return !overlaps(start, end, busySlots);
     });
 
